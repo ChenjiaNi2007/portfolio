@@ -1,0 +1,58 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #030611;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #e8f4fd;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Loading overlay */
+.loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: #030611;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s;
+  pointer-events: none;
+}
+
+.loadingGlobe {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: spin 4s linear infinite;
+}
+
+.loadingText {
+  font-size: 14px;
+  color: #4fc3f7;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

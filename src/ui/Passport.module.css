@@ -1,0 +1,200 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 299;
+  background: rgba(0,0,0,0.4);
+}
+
+.panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  max-width: 92vw;
+  height: 100%;
+  z-index: 300;
+  background: #0b0e1c;
+  border-right: 1px solid rgba(255, 180, 80, 0.2);
+  transform: translateX(-100%);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 10px 0 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.open {
+  transform: translateX(0);
+}
+
+.cover {
+  background: linear-gradient(160deg, #1a1200 0%, #2a1a00 50%, #0b0e1c 100%);
+  border-bottom: 1px solid rgba(255, 180, 80, 0.25);
+  padding: 36px 24px 24px;
+  text-align: center;
+  position: relative;
+}
+
+.coverEmblem {
+  font-size: 36px;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 0 12px rgba(255, 180, 80, 0.5));
+}
+
+.coverTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #e8c870;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.coverSub {
+  font-size: 10px;
+  color: #8a7040;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.closeBtn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  color: #8a7040;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.closeBtn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #e8c870;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,180,80,0.2) transparent;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #e8c870;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.hint {
+  font-size: 11px;
+  color: #4a3c20;
+  margin-bottom: 16px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entry {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.entryBtn {
+  width: 100%;
+  background: rgba(255, 180, 80, 0.05);
+  border: 1px solid rgba(255, 180, 80, 0.1);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s, border-color 0.2s;
+  color: inherit;
+  position: relative;
+}
+
+.entryBtn:hover {
+  background: rgba(255, 180, 80, 0.1);
+  border-color: rgba(255, 180, 80, 0.25);
+}
+
+.visited {
+  border-color: rgba(255, 180, 80, 0.3);
+}
+
+.stamp {
+  font-size: 20px;
+  color: #e8c870;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.entryContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.entryTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d4b870;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entryCity {
+  font-size: 10px;
+  color: #6a5530;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.entryTech {
+  font-size: 10px;
+  color: #5a4a28;
+}
+
+.visitedBadge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #e8c870;
+  background: rgba(255, 180, 80, 0.12);
+  border-radius: 3px;
+  padding: 2px 5px;
+}
+
+.visitedCount {
+  margin-top: 20px;
+  font-size: 11px;
+  color: #6a5530;
+  text-align: center;
+}

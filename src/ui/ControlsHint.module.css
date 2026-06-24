@@ -1,0 +1,42 @@
+.hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: rgba(10, 14, 26, 0.82);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 30px;
+  padding: 8px 18px 8px 20px;
+  font-size: 12px;
+  color: #7899bb;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  backdrop-filter: blur(6px);
+  pointer-events: all;
+  white-space: nowrap;
+}
+
+.close {
+  background: none;
+  border: none;
+  color: #557;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.close:hover {
+  color: #aaa;
+}
+
+@media (max-width: 500px) {
+  .hint {
+    font-size: 10px;
+    padding: 7px 14px 7px 16px;
+    bottom: 16px;
+  }
+}

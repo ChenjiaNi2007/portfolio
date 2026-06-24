@@ -1,0 +1,91 @@
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: linear-gradient(to bottom, rgba(5, 8, 18, 0.9) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.left {
+  pointer-events: none;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e8f4fd;
+  letter-spacing: 0.02em;
+}
+
+.tagline {
+  font-size: 12px;
+  color: #6888aa;
+  margin-top: 1px;
+  letter-spacing: 0.04em;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: all;
+}
+
+.link {
+  font-size: 13px;
+  color: #8bacc8;
+  text-decoration: none;
+  letter-spacing: 0.03em;
+  transition: color 0.2s;
+}
+
+.link:hover {
+  color: #e8f4fd;
+}
+
+.linkResume {
+  composes: link;
+  background: rgba(79, 195, 247, 0.15);
+  border: 1px solid rgba(79, 195, 247, 0.35);
+  border-radius: 6px;
+  padding: 4px 10px;
+  color: #4fc3f7;
+}
+
+.linkResume:hover {
+  background: rgba(79, 195, 247, 0.25);
+  color: #81d4fa;
+}
+
+.passportBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+  line-height: 1;
+}
+
+.passportBtn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@media (max-width: 600px) {
+  .header {
+    padding: 10px 14px;
+  }
+  .tagline {
+    display: none;
+  }
+  .link:not(.linkResume) {
+    display: none;
+  }
+}
