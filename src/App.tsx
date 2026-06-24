@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import Globe from './scene/Globe';
 import Starfield from './scene/Starfield';
-import Plane from './scene/Plane';
+import Satellite from './scene/Satellite';
 import Pins from './scene/Pins';
 import CameraRig from './scene/CameraRig';
 import Header from './ui/Header';
@@ -14,16 +14,20 @@ import locations from './data/locations';
 import { angularDistance } from './lib/geo';
 import './App.css';
 
-const SPEED = 0.35;
-const BANK_DECAY = 0.08;
-const BANK_AMOUNT = 0.6;
+const SPEED = 0.32;
 const PROXIMITY_DEG = 16;
+
+// Smoothly interpolate between two compass headings (degrees) the short way around.
+function lerpHeading(a: number, b: number, t: number): number {
+  let diff = ((b - a + 540) % 360) - 180;
+  return a + diff * t;
+}
 
 function LoadingScreen() {
   return (
     <div className="loadingOverlay">
-      <div className="loadingGlobe">🌍</div>
-      <div className="loadingText">Loading Earth...</div>
+      <div className="loadingGlobe">🛰️</div>
+      <div className="loadingText">Acquiring orbit...</div>
     </div>
   );
 }
@@ -34,7 +38,6 @@ export default function App() {
   const [lat, setLat] = useState(20);
   const [lng, setLng] = useState(0);
   const [heading, setHeading] = useState(0);
-  const [bankAngle, setBankAngle] = useState(0);
   const [zoom, setZoom] = useState(0.35);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [activeLandingId, setActiveLandingId] = useState<string | null>(null);
@@ -47,13 +50,11 @@ export default function App() {
   const latRef = useRef(lat);
   const lngRef = useRef(lng);
   const headingRef = useRef(heading);
-  const bankRef = useRef(bankAngle);
   const landingRef = useRef(isLanding);
 
   latRef.current = lat;
   lngRef.current = lng;
   headingRef.current = heading;
-  bankRef.current = bankAngle;
   landingRef.current = isLanding;
 
   // Keyboard input
@@ -117,8 +118,12 @@ export default function App() {
         const dy = e.touches[0].clientY - touchRef.current.y;
         touchRef.current.x = e.touches[0].clientX;
         touchRef.current.y = e.touches[0].clientY;
-        setHeading((h) => h + dx * 0.5);
-        setLat((l) => Math.max(-85, Math.min(85, l - dy * 0.3)));
+        // Drag the satellite across the surface: up = north, right = east.
+        setLat((l) => Math.max(-85, Math.min(85, l - dy * 0.25)));
+        setLng((l) => ((l + dx * 0.25 + 180) % 360 + 360) % 360 - 180);
+        if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
+          setHeading((h) => lerpHeading(h, Math.atan2(dx, -dy) * (180 / Math.PI), 0.2));
+        }
       }
     };
     const onTouchEnd = () => { touchRef.current = null; };
@@ -143,33 +148,36 @@ export default function App() {
 
       if (!landingRef.current) {
         const keys = keysRef.current;
-        const forward  = keys['arrowup']    || keys['w'];
-        const backward = keys['arrowdown']  || keys['s'];
-        const left     = keys['arrowleft']  || keys['a'];
-        const right    = keys['arrowright'] || keys['d'];
+        // Direct cardinal movement: the satellite slides N/S/E/W over the surface.
+        const north = keys['arrowup']    || keys['w'];
+        const south = keys['arrowdown']  || keys['s'];
+        const west  = keys['arrowleft']  || keys['a'];
+        const east  = keys['arrowright'] || keys['d'];
 
-        let newHeading = headingRef.current;
-        let newBank    = bankRef.current;
+        let dLat = 0;
+        let dLng = 0;
+        if (north) dLat += 1;
+        if (south) dLat -= 1;
+        if (east)  dLng += 1;
+        if (west)  dLng -= 1;
 
-        if (left)  { newHeading -= 1.8 * dt; newBank  =  BANK_AMOUNT; }
-        if (right) { newHeading += 1.8 * dt; newBank  = -BANK_AMOUNT; }
-        if (!left && !right) { newBank += (0 - newBank) * BANK_DECAY * dt; }
-
-        const headRad = newHeading * (Math.PI / 180);
         const spd = SPEED * dt;
-        let newLat = latRef.current;
-        let newLng = lngRef.current;
-
-        if (forward)  { newLat += Math.cos(headRad) * spd; newLng += Math.sin(headRad) * spd; }
-        if (backward) { newLat -= Math.cos(headRad) * spd; newLng -= Math.sin(headRad) * spd; }
+        let newLat = latRef.current + dLat * spd;
+        let newLng = lngRef.current + dLng * spd;
 
         newLat = Math.max(-85, Math.min(85, newLat));
         newLng = ((newLng + 180) % 360 + 360) % 360 - 180;
 
+        // Orient the camera/satellite toward the direction of travel.
+        let newHeading = headingRef.current;
+        if (dLat !== 0 || dLng !== 0) {
+          const target = Math.atan2(dLng, dLat) * (180 / Math.PI); // 0 = north, 90 = east
+          newHeading = lerpHeading(headingRef.current, target, Math.min(1, 0.12 * dt));
+        }
+
         setLat(newLat);
         setLng(newLng);
         setHeading(newHeading);
-        setBankAngle(newBank);
 
         // Mark nearby locations as visited
         locations.forEach((loc) => {
@@ -264,17 +272,17 @@ export default function App() {
         style={{ background: '#030611' }}
         onCreated={() => { setTimeout(() => setLoaded(true), 1800); }}
       >
-        <ambientLight intensity={0.25} />
-        <directionalLight position={[5, 3, 5]} intensity={1.2} />
-        <directionalLight position={[-5, -3, -5]} intensity={0.15} color="#aaccff" />
+        <ambientLight intensity={0.55} />
+        <hemisphereLight args={['#bfe3ff', '#243040', 0.5]} />
+        <directionalLight position={[5, 3, 5]} intensity={1.1} />
+        <directionalLight position={[-5, -2, -4]} intensity={0.4} color="#aaccff" />
 
         <Suspense fallback={null}>
           <Globe autoRotate={false} />
-          <Plane
+          <Satellite
             lat={lat}
             lng={lng}
             heading={heading}
-            bankAngle={bankAngle}
             visible={!activeLandingId}
           />
           <Pins

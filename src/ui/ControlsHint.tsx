@@ -6,7 +6,7 @@ export default function ControlsHint() {
   if (dismissed) return null;
   return (
     <div className={styles.hint}>
-      <span>WASD / Arrow keys to fly · Scroll to zoom · L to land</span>
+      <span>WASD / Arrow keys to move · Scroll to zoom · L to scan</span>
       <button className={styles.close} onClick={() => setDismissed(true)}>✕</button>
     </div>
   );

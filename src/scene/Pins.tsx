@@ -82,7 +82,7 @@ function ProjectPin({
             <div className={styles.popupCity}>{location.city}</div>
             <div className={styles.popupSummary}>{location.summary}</div>
             <button className={styles.landBtn} onClick={onLand}>
-              ✈ Land here
+              🛰 Scan location
             </button>
           </div>
         </Html>
@@ -141,7 +141,7 @@ function PhotoPin({
             {!location.photos[0] && <div className={styles.popupPhotoIcon}>📷</div>}
             <div className={styles.popupSummary}>{location.caption}</div>
             <button className={styles.landBtn + ' ' + styles.photoLandBtn} onClick={onLand}>
-              📷 Explore
+              📷 Capture
             </button>
           </div>
         </Html>

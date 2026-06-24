@@ -62,7 +62,7 @@ export default function DetailPanel({ location, onClose }: DetailPanelProps) {
 
   return (
     <div className={`${styles.panel} ${open ? styles.open : ''}`}>
-      <button className={styles.closeBtn} onClick={onClose} aria-label="Take off">
+      <button className={styles.closeBtn} onClick={onClose} aria-label="Return to orbit">
         ✕
       </button>
 
@@ -164,9 +164,9 @@ export default function DetailPanel({ location, onClose }: DetailPanelProps) {
           </div>
         </div>
 
-        {/* Take off button */}
+        {/* Return to orbit button */}
         <button className={styles.takeoffBtn} onClick={onClose}>
-          ✈ Take off
+          🛰 Return to orbit
         </button>
       </div>
     </div>
