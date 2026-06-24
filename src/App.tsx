@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import Globe from './scene/Globe';
 import Starfield from './scene/Starfield';
 import Satellite from './scene/Satellite';
@@ -12,14 +12,21 @@ import DetailPanel from './ui/DetailPanel';
 import Passport from './ui/Passport';
 import locations from './data/locations';
 import { angularDistance } from './lib/geo';
+import type { Flight } from './lib/flight';
 import './App.css';
 
-const SPEED = 0.32;
+// Movement tuning (degrees per ~60fps frame).
+const MAX_SPEED = 0.5;    // top traversal speed
+const ACCEL = 0.03;       // how quickly velocity eases toward target (lower = slower ramp)
+const FRICTION = 0.06;    // how quickly velocity decays when keys released
+const AUTO_EASE = 0.05;   // fly-to easing toward a passport target
 const PROXIMITY_DEG = 16;
+
+const wrapLng = (lng: number) => ((lng + 180) % 360 + 360) % 360 - 180;
 
 // Smoothly interpolate between two compass headings (degrees) the short way around.
 function lerpHeading(a: number, b: number, t: number): number {
-  let diff = ((b - a + 540) % 360) - 180;
+  const diff = ((b - a + 540) % 360) - 180;
   return a + diff * t;
 }
 
@@ -32,12 +39,95 @@ function LoadingScreen() {
   );
 }
 
+// Single source of truth for motion. Runs inside the R3F frame loop so the
+// satellite and camera (which read the same ref) never tear against it.
+function FlightController({
+  flightRef,
+  keysRef,
+  autoTargetRef,
+  landingRef,
+  onSync,
+}: {
+  flightRef: React.MutableRefObject<Flight>;
+  keysRef: React.MutableRefObject<Record<string, boolean>>;
+  autoTargetRef: React.MutableRefObject<{ lat: number; lng: number } | null>;
+  landingRef: React.MutableRefObject<boolean>;
+  onSync: (f: Flight) => void;
+}) {
+  const syncAccum = useRef(0);
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta * 60, 3); // normalize to frame-units, clamp big hitches
+    const f = flightRef.current;
+
+    if (autoTargetRef.current) {
+      // Passport fly-to: ease toward the target, ignore input.
+      const target = autoTargetRef.current;
+      f.vLat = 0;
+      f.vLng = 0;
+      const k = Math.min(1, AUTO_EASE * dt);
+      const dLng = ((target.lng - f.lng + 540) % 360) - 180;
+      f.lat += (target.lat - f.lat) * k;
+      f.lng = wrapLng(f.lng + dLng * k);
+      f.heading = lerpHeading(
+        f.heading,
+        Math.atan2(dLng, target.lat - f.lat) * (180 / Math.PI),
+        Math.min(1, 0.1 * dt),
+      );
+    } else if (!landingRef.current) {
+      const keys = keysRef.current;
+      let ix = 0; // east +
+      let iy = 0; // north +
+      if (keys['w'] || keys['arrowup']) iy += 1;
+      if (keys['s'] || keys['arrowdown']) iy -= 1;
+      if (keys['d'] || keys['arrowright']) ix += 1;
+      if (keys['a'] || keys['arrowleft']) ix -= 1;
+
+      const hasInput = ix !== 0 || iy !== 0;
+      if (hasInput) {
+        const m = Math.hypot(ix, iy);
+        ix /= m;
+        iy /= m;
+      }
+
+      // Ease velocity toward the desired velocity: ramps up while held, coasts down when released.
+      const desiredVLat = iy * MAX_SPEED;
+      const desiredVLng = ix * MAX_SPEED;
+      const rate = Math.min(1, (hasInput ? ACCEL : FRICTION) * dt);
+      f.vLat += (desiredVLat - f.vLat) * rate;
+      f.vLng += (desiredVLng - f.vLng) * rate;
+
+      f.lat = Math.max(-85, Math.min(85, f.lat + f.vLat * dt));
+      f.lng = wrapLng(f.lng + f.vLng * dt);
+
+      const speed = Math.hypot(f.vLat, f.vLng);
+      if (speed > 0.02) {
+        f.heading = lerpHeading(
+          f.heading,
+          Math.atan2(f.vLng, f.vLat) * (180 / Math.PI),
+          Math.min(1, 0.1 * dt),
+        );
+      }
+    } else {
+      f.vLat = 0;
+      f.vLng = 0;
+    }
+
+    // Push to React state ~10x/sec for UI (pins / visited) without re-rendering every frame.
+    syncAccum.current += delta;
+    if (syncAccum.current >= 0.1) {
+      syncAccum.current = 0;
+      onSync(f);
+    }
+  });
+
+  return null;
+}
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(true);
   const [lat, setLat] = useState(20);
   const [lng, setLng] = useState(0);
-  const [heading, setHeading] = useState(0);
   const [zoom, setZoom] = useState(0.35);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [activeLandingId, setActiveLandingId] = useState<string | null>(null);
@@ -45,17 +135,31 @@ export default function App() {
   const [passportOpen, setPassportOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  const flightRef = useRef<Flight>({ lat: 20, lng: 0, heading: 0, vLat: 0, vLng: 0 });
   const keysRef = useRef<Record<string, boolean>>({});
   const touchRef = useRef<{ x: number; y: number; dist?: number } | null>(null);
-  const latRef = useRef(lat);
-  const lngRef = useRef(lng);
-  const headingRef = useRef(heading);
+  const autoTargetRef = useRef<{ lat: number; lng: number } | null>(null);
   const landingRef = useRef(isLanding);
-
-  latRef.current = lat;
-  lngRef.current = lng;
-  headingRef.current = heading;
+  const activeLandingRef = useRef<string | null>(activeLandingId);
   landingRef.current = isLanding;
+  activeLandingRef.current = activeLandingId;
+
+  // Sync flight ref → React state (called ~10x/sec from the controller).
+  function handleSync(f: Flight) {
+    setLat(f.lat);
+    setLng(f.lng);
+    locations.forEach((loc) => {
+      const distRad = angularDistance(f.lat, f.lng, loc.coordinates.lat, loc.coordinates.lng);
+      if (distRad * (180 / Math.PI) < PROXIMITY_DEG) {
+        setVisitedIds((prev) => {
+          if (prev.has(loc.id)) return prev;
+          const next = new Set(prev);
+          next.add(loc.id);
+          return next;
+        });
+      }
+    });
+  }
 
   // Keyboard input
   useEffect(() => {
@@ -64,7 +168,7 @@ export default function App() {
       if (e.key.toLowerCase() === 'l' && !landingRef.current) {
         landAtNearest();
       }
-      if (e.key === 'Escape' && activeLandingId) {
+      if (e.key === 'Escape' && activeLandingRef.current) {
         takeOff();
       }
     };
@@ -77,7 +181,7 @@ export default function App() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  });
+  }, []);
 
   // Scroll zoom
   useEffect(() => {
@@ -89,7 +193,7 @@ export default function App() {
     return () => window.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Touch controls
+  // Touch controls — drag moves the satellite directly, pinch zooms.
   useEffect(() => {
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 1) {
@@ -110,19 +214,20 @@ export default function App() {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const newDist = Math.sqrt(dx * dx + dy * dy);
-        const delta = (touchRef.current.dist - newDist) * 0.003;
-        setZoom((z) => Math.max(0, Math.min(1, z + delta)));
+        setZoom((z) => Math.max(0, Math.min(1, z + (touchRef.current!.dist! - newDist) * 0.003)));
         touchRef.current.dist = newDist;
       } else if (e.touches.length === 1) {
         const dx = e.touches[0].clientX - touchRef.current.x;
         const dy = e.touches[0].clientY - touchRef.current.y;
         touchRef.current.x = e.touches[0].clientX;
         touchRef.current.y = e.touches[0].clientY;
-        // Drag the satellite across the surface: up = north, right = east.
-        setLat((l) => Math.max(-85, Math.min(85, l - dy * 0.25)));
-        setLng((l) => ((l + dx * 0.25 + 180) % 360 + 360) % 360 - 180);
+        const f = flightRef.current;
+        f.vLat = 0;
+        f.vLng = 0;
+        f.lat = Math.max(-85, Math.min(85, f.lat - dy * 0.25));
+        f.lng = wrapLng(f.lng + dx * 0.25);
         if (Math.abs(dx) > 0.3 || Math.abs(dy) > 0.3) {
-          setHeading((h) => lerpHeading(h, Math.atan2(dx, -dy) * (180 / Math.PI), 0.2));
+          f.heading = lerpHeading(f.heading, Math.atan2(dx, -dy) * (180 / Math.PI), 0.2);
         }
       }
     };
@@ -137,76 +242,13 @@ export default function App() {
     };
   }, []);
 
-  // Game loop
-  useEffect(() => {
-    let frameId: number;
-    let last = performance.now();
-
-    function tick(now: number) {
-      const dt = Math.min((now - last) / 16.67, 3);
-      last = now;
-
-      if (!landingRef.current) {
-        const keys = keysRef.current;
-        // Direct cardinal movement: the satellite slides N/S/E/W over the surface.
-        const north = keys['arrowup']    || keys['w'];
-        const south = keys['arrowdown']  || keys['s'];
-        const west  = keys['arrowleft']  || keys['a'];
-        const east  = keys['arrowright'] || keys['d'];
-
-        let dLat = 0;
-        let dLng = 0;
-        if (north) dLat += 1;
-        if (south) dLat -= 1;
-        if (east)  dLng += 1;
-        if (west)  dLng -= 1;
-
-        const spd = SPEED * dt;
-        let newLat = latRef.current + dLat * spd;
-        let newLng = lngRef.current + dLng * spd;
-
-        newLat = Math.max(-85, Math.min(85, newLat));
-        newLng = ((newLng + 180) % 360 + 360) % 360 - 180;
-
-        // Orient the camera/satellite toward the direction of travel.
-        let newHeading = headingRef.current;
-        if (dLat !== 0 || dLng !== 0) {
-          const target = Math.atan2(dLng, dLat) * (180 / Math.PI); // 0 = north, 90 = east
-          newHeading = lerpHeading(headingRef.current, target, Math.min(1, 0.12 * dt));
-        }
-
-        setLat(newLat);
-        setLng(newLng);
-        setHeading(newHeading);
-
-        // Mark nearby locations as visited
-        locations.forEach((loc) => {
-          const distRad = angularDistance(newLat, newLng, loc.coordinates.lat, loc.coordinates.lng);
-          if (distRad * (180 / Math.PI) < PROXIMITY_DEG) {
-            setVisitedIds((prev) => {
-              if (prev.has(loc.id)) return prev;
-              const next = new Set(prev);
-              next.add(loc.id);
-              return next;
-            });
-          }
-        });
-      }
-
-      frameId = requestAnimationFrame(tick);
-    }
-
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, []);
-
   function getNearestInRange(): string | null {
+    const f = flightRef.current;
     let best: string | null = null;
     let bestDist = Infinity;
     locations.forEach((loc) => {
-      const dist = angularDistance(lat, lng, loc.coordinates.lat, loc.coordinates.lng);
-      const distDeg = dist * (180 / Math.PI);
-      if (distDeg < PROXIMITY_DEG && dist < bestDist) {
+      const dist = angularDistance(f.lat, f.lng, loc.coordinates.lat, loc.coordinates.lng);
+      if (dist * (180 / Math.PI) < PROXIMITY_DEG && dist < bestDist) {
         bestDist = dist;
         best = loc.id;
       }
@@ -216,17 +258,17 @@ export default function App() {
 
   function landAtNearest() {
     const id = getNearestInRange();
-    if (!id) return;
-    triggerLand(id);
+    if (id) triggerLand(id);
   }
 
+  // Clicked a pin popup: ease to center it, then land.
   function landAt(id: string) {
     const loc = locations.find((l) => l.id === id);
-    if (loc) {
-      setLat(loc.coordinates.lat);
-      setLng(loc.coordinates.lng);
-    }
-    triggerLand(id);
+    if (loc) autoTargetRef.current = { ...loc.coordinates };
+    setTimeout(() => {
+      autoTargetRef.current = null;
+      triggerLand(id);
+    }, 500);
   }
 
   function triggerLand(id: string) {
@@ -246,18 +288,20 @@ export default function App() {
     setTimeout(() => setIsLanding(false), 400);
   }
 
+  // Passport: fly across to the location, then auto-land.
   function flyTo(id: string) {
     const loc = locations.find((l) => l.id === id);
     if (!loc) return;
-    setLat(loc.coordinates.lat);
-    setLng(loc.coordinates.lng);
-    setTimeout(() => landAt(id), 1400);
+    autoTargetRef.current = { ...loc.coordinates };
+    setTimeout(() => {
+      autoTargetRef.current = null;
+      triggerLand(id);
+    }, 1500);
   }
 
   const activeLoc = activeLandingId
     ? (locations.find((l) => l.id === activeLandingId) ?? null)
     : null;
-
   const landingCoords = activeLoc ? activeLoc.coordinates : null;
 
   return (
@@ -272,19 +316,24 @@ export default function App() {
         style={{ background: '#030611' }}
         onCreated={() => { setTimeout(() => setLoaded(true), 1800); }}
       >
-        <ambientLight intensity={0.55} />
-        <hemisphereLight args={['#bfe3ff', '#243040', 0.5]} />
-        <directionalLight position={[5, 3, 5]} intensity={1.1} />
-        <directionalLight position={[-5, -2, -4]} intensity={0.4} color="#aaccff" />
+        {/* Flat, even lighting so the stylized globe stays readable from every angle
+            (no harsh day/night terminator) while directionals still define facets. */}
+        <ambientLight intensity={0.85} />
+        <hemisphereLight args={['#cfeaff', '#2a3344', 0.6]} />
+        <directionalLight position={[5, 3, 5]} intensity={0.6} />
+        <directionalLight position={[-5, -2, -4]} intensity={0.5} color="#cfe0ff" />
+
+        <FlightController
+          flightRef={flightRef}
+          keysRef={keysRef}
+          autoTargetRef={autoTargetRef}
+          landingRef={landingRef}
+          onSync={handleSync}
+        />
 
         <Suspense fallback={null}>
           <Globe autoRotate={false} />
-          <Satellite
-            lat={lat}
-            lng={lng}
-            heading={heading}
-            visible={!activeLandingId}
-          />
+          <Satellite flightRef={flightRef} visible={!activeLandingId} />
           <Pins
             locations={locations}
             planeLat={lat}
@@ -294,9 +343,7 @@ export default function App() {
             panelOpen={!!activeLandingId}
           />
           <CameraRig
-            lat={lat}
-            lng={lng}
-            heading={heading}
+            flightRef={flightRef}
             zoom={zoom}
             isLanding={isLanding}
             landTarget={landingCoords}

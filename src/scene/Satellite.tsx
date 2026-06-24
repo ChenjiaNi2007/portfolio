@@ -2,18 +2,17 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { latLngToVector3 } from '../lib/geo';
+import type { Flight } from '../lib/flight';
 import { GLOBE_RADIUS } from './Globe';
 
 interface SatelliteProps {
-  lat: number;
-  lng: number;
-  heading: number; // degrees, 0 = north, derived from travel direction
+  flightRef: React.MutableRefObject<Flight>;
   visible?: boolean;
 }
 
 export const SATELLITE_ALTITUDE = 0.5;
 
-export default function Satellite({ lat, lng, heading, visible = true }: SatelliteProps) {
+export default function Satellite({ flightRef, visible = true }: SatelliteProps) {
   const outerRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const dishRef = useRef<THREE.Mesh>(null);
@@ -21,27 +20,35 @@ export default function Satellite({ lat, lng, heading, visible = true }: Satelli
   const ringRef = useRef<THREE.Mesh>(null);
   const blinkRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  const position = useMemo(
-    () => latLngToVector3(lat, lng, GLOBE_RADIUS + SATELLITE_ALTITUDE),
-    [lat, lng],
+  // Reusable temporaries to avoid per-frame allocations.
+  const tmp = useMemo(
+    () => ({
+      pos: new THREE.Vector3(),
+      up: new THREE.Vector3(),
+      q: new THREE.Quaternion(),
+      yaw: new THREE.Quaternion(),
+      yAxis: new THREE.Vector3(0, 1, 0),
+    }),
+    [],
   );
 
   useFrame(({ clock }) => {
     if (!outerRef.current) return;
+    const f = flightRef.current;
 
-    // Sit on the radial axis, with local +Y pointing away from the planet.
-    outerRef.current.position.copy(position);
-    const up = position.clone().normalize();
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
-    // Yaw around the up axis to face the travel direction.
-    const yaw = new THREE.Quaternion().setFromAxisAngle(up, -heading * (Math.PI / 180));
-    outerRef.current.quaternion.copy(yaw.multiply(q));
+    const pos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS + SATELLITE_ALTITUDE);
+    outerRef.current.position.copy(pos);
+
+    // Local +Y points to space; yaw around it to face the travel direction.
+    tmp.up.copy(pos).normalize();
+    tmp.q.setFromUnitVectors(tmp.yAxis, tmp.up);
+    tmp.yaw.setFromAxisAngle(tmp.up, -f.heading * (Math.PI / 180));
+    outerRef.current.quaternion.copy(tmp.yaw.multiply(tmp.q));
 
     const t = clock.getElapsedTime();
-    if (bodyRef.current) bodyRef.current.rotation.y = Math.sin(t * 0.4) * 0.15;
+    if (bodyRef.current) bodyRef.current.rotation.y = Math.sin(t * 0.4) * 0.12;
     if (dishRef.current) dishRef.current.rotation.z = t * 0.6;
 
-    // Scanning beam shimmer + ground ring pulse.
     if (beamRef.current) {
       const m = beamRef.current.material as THREE.MeshBasicMaterial;
       m.opacity = 0.12 + Math.abs(Math.sin(t * 2)) * 0.12;
@@ -56,18 +63,14 @@ export default function Satellite({ lat, lng, heading, visible = true }: Satelli
     }
   });
 
-  if (!visible) return null;
-
   return (
-    <group ref={outerRef}>
+    <group ref={outerRef} visible={visible}>
       {/* Satellite body — small scale, +Y points to space, -Y faces Earth */}
       <group ref={bodyRef} scale={0.07}>
-        {/* Main bus */}
         <mesh>
           <boxGeometry args={[0.5, 0.6, 0.5]} />
           <meshStandardMaterial color="#d9b75a" roughness={0.5} metalness={0.6} flatShading />
         </mesh>
-        {/* Gold foil cap */}
         <mesh position={[0, 0.34, 0]}>
           <boxGeometry args={[0.42, 0.1, 0.42]} />
           <meshStandardMaterial color="#caa23f" roughness={0.4} metalness={0.7} flatShading />
@@ -97,7 +100,6 @@ export default function Satellite({ lat, lng, heading, visible = true }: Satelli
           <coneGeometry args={[0.22, 0.18, 12, 1, true]} />
           <meshStandardMaterial color="#e8eef5" metalness={0.6} roughness={0.3} side={THREE.DoubleSide} flatShading />
         </mesh>
-        {/* Dish emitter */}
         <mesh position={[0, -0.46, 0]}>
           <sphereGeometry args={[0.05, 8, 8]} />
           <meshStandardMaterial color="#6fffd6" emissive="#6fffd6" emissiveIntensity={1.4} />

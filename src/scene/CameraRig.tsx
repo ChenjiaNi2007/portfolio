@@ -2,13 +2,12 @@ import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { latLngToVector3 } from '../lib/geo';
+import type { Flight } from '../lib/flight';
 import { GLOBE_RADIUS } from './Globe';
 import { SATELLITE_ALTITUDE } from './Satellite';
 
 interface CameraRigProps {
-  lat: number;
-  lng: number;
-  heading: number;
+  flightRef: React.MutableRefObject<Flight>;
   zoom: number; // 0 = far, 1 = close
   isLanding: boolean;
   landTarget: { lat: number; lng: number } | null;
@@ -17,15 +16,16 @@ interface CameraRigProps {
 const MIN_DIST = 1.4;
 const MAX_DIST = 9;
 
-export default function CameraRig({ lat, lng, heading, zoom, isLanding, landTarget }: CameraRigProps) {
+export default function CameraRig({ flightRef, zoom, isLanding, landTarget }: CameraRigProps) {
   const { camera } = useThree();
   const targetPos = useRef(new THREE.Vector3());
   const targetLook = useRef(new THREE.Vector3());
 
   useFrame(() => {
-    const headingRad = heading * (Math.PI / 180);
-    const satPos = latLngToVector3(lat, lng, GLOBE_RADIUS + SATELLITE_ALTITUDE);
-    const groundPos = latLngToVector3(lat, lng, GLOBE_RADIUS);
+    const f = flightRef.current;
+    const headingRad = f.heading * (Math.PI / 180);
+    const satPos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS + SATELLITE_ALTITUDE);
+    const groundPos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS);
     const up = satPos.clone().normalize();
 
     const north = new THREE.Vector3(0, 1, 0);
@@ -39,7 +39,6 @@ export default function CameraRig({ lat, lng, heading, zoom, isLanding, landTarg
       .normalize();
 
     if (isLanding && landTarget) {
-      // Drop toward the scanned location.
       const landPos = latLngToVector3(landTarget.lat, landTarget.lng, GLOBE_RADIUS + 0.45);
       const landGround = latLngToVector3(landTarget.lat, landTarget.lng, GLOBE_RADIUS);
       targetPos.current.lerp(landPos, 0.05);
@@ -47,19 +46,17 @@ export default function CameraRig({ lat, lng, heading, zoom, isLanding, landTarg
     } else {
       const dist = THREE.MathUtils.lerp(MAX_DIST, MIN_DIST, zoom);
       const back = forward.clone().negate();
-      // High-angle chase: above and behind the satellite, framing the ground it scans.
       const chasePos = satPos
         .clone()
-        .addScaledVector(up, 0.22 * dist)
-        .addScaledVector(back, 0.14 * dist);
+        .addScaledVector(up, 0.26 * dist)
+        .addScaledVector(back, 0.12 * dist);
 
-      targetPos.current.lerp(chasePos, 0.07);
-      // Look at a point between the satellite and the ground beneath it.
+      targetPos.current.lerp(chasePos, 0.08);
       const look = satPos.clone().lerp(groundPos, 0.55);
-      targetLook.current.lerp(look, 0.1);
+      targetLook.current.lerp(look, 0.12);
     }
 
-    camera.position.lerp(targetPos.current, 0.1);
+    camera.position.lerp(targetPos.current, 0.12);
     camera.lookAt(targetLook.current);
   });
 
