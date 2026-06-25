@@ -10,19 +10,36 @@ interface CameraRigProps {
   flightRef: React.MutableRefObject<Flight>;
   zoom: number; // 0 = far, 1 = close
   isLanding: boolean;
+  intro: boolean;
   landTarget: { lat: number; lng: number } | null;
 }
 
 const MIN_DIST = 1.4;
 const MAX_DIST = 9;
 
-export default function CameraRig({ flightRef, zoom, isLanding, landTarget }: CameraRigProps) {
-  const { camera } = useThree();
+export default function CameraRig({ flightRef, zoom, isLanding, intro, landTarget }: CameraRigProps) {
+  const { camera, clock } = useThree();
   const targetPos = useRef(new THREE.Vector3());
   const targetLook = useRef(new THREE.Vector3());
 
   useFrame(() => {
     const f = flightRef.current;
+
+    // Intro: a slow, wide cinematic orbit around the whole planet. Easing the camera
+    // toward this target means the hand-off to the chase cam on launch is seamless.
+    if (intro) {
+      const t = clock.getElapsedTime();
+      const az = t * 0.05;
+      const dist = 8.4;
+      targetPos.current.lerp(
+        new THREE.Vector3(Math.sin(az) * dist, 3.0 + Math.sin(t * 0.16) * 0.35, Math.cos(az) * dist),
+        0.04,
+      );
+      targetLook.current.lerp(new THREE.Vector3(0, 0, 0), 0.06);
+      camera.position.lerp(targetPos.current, 0.06);
+      camera.lookAt(targetLook.current);
+      return;
+    }
     const headingRad = f.heading * (Math.PI / 180);
     const satPos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS + SATELLITE_ALTITUDE);
     const groundPos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS);

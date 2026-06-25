@@ -48,12 +48,14 @@ function FlightController({
   keysRef,
   autoTargetRef,
   landingRef,
+  introRef,
   onSync,
 }: {
   flightRef: React.MutableRefObject<Flight>;
   keysRef: React.MutableRefObject<Record<string, boolean>>;
   autoTargetRef: React.MutableRefObject<{ lat: number; lng: number } | null>;
   landingRef: React.MutableRefObject<boolean>;
+  introRef: React.MutableRefObject<boolean>;
   onSync: (f: Flight) => void;
 }) {
   const syncAccum = useRef(0);
@@ -61,6 +63,17 @@ function FlightController({
   useFrame((_, delta) => {
     const dt = Math.min(delta * 60, 3); // normalize to frame-units, clamp big hitches
     const f = flightRef.current;
+
+    // Intro: the satellite drifts along a slow orbit (camera handles the cinematic
+    // sweep). No input, no proximity sync — purely a backdrop for the landing copy.
+    if (introRef.current) {
+      f.vLat = 0;
+      f.vLng = 0;
+      f.lng = wrapLng(f.lng + 0.16 * dt);
+      f.lat += (14 - f.lat) * Math.min(1, 0.02 * dt);
+      f.heading = 90;
+      return;
+    }
 
     if (autoTargetRef.current) {
       // Passport fly-to: ease toward the target, ignore input.
@@ -142,8 +155,10 @@ export default function App() {
   const autoTargetRef = useRef<{ lat: number; lng: number } | null>(null);
   const landingRef = useRef(isLanding);
   const activeLandingRef = useRef<string | null>(activeLandingId);
+  const introRef = useRef(showIntro);
   landingRef.current = isLanding;
   activeLandingRef.current = activeLandingId;
+  introRef.current = showIntro;
 
   // Sync flight ref → React state (called ~10x/sec from the controller).
   // Marker proximity for the nearby-labels overlay is handled in NearbyProjector;
@@ -336,12 +351,13 @@ export default function App() {
           keysRef={keysRef}
           autoTargetRef={autoTargetRef}
           landingRef={landingRef}
+          introRef={introRef}
           onSync={handleSync}
         />
 
         <Suspense fallback={null}>
           <Globe autoRotate={false} />
-          <Satellite flightRef={flightRef} visible={!activeLandingId} />
+          <Satellite flightRef={flightRef} visible={!activeLandingId} scale={showIntro ? 2.1 : 1} />
           <Pins locations={locations} visitedIds={visitedIds} />
           <NearbyProjector
             locations={locations}
@@ -352,6 +368,7 @@ export default function App() {
             flightRef={flightRef}
             zoom={zoom}
             isLanding={isLanding}
+            intro={showIntro}
             landTarget={landingCoords}
           />
         </Suspense>
@@ -359,7 +376,7 @@ export default function App() {
         <Starfield />
       </Canvas>
 
-      <Header onPassport={() => setPassportOpen(true)} />
+      {!showIntro && <Header onPassport={() => setPassportOpen(true)} />}
       {!showIntro && !activeLandingId && <ControlsHint />}
 
       {!showIntro && !activeLandingId && (

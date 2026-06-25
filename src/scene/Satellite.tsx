@@ -8,11 +8,12 @@ import { GLOBE_RADIUS } from './Globe';
 interface SatelliteProps {
   flightRef: React.MutableRefObject<Flight>;
   visible?: boolean;
+  scale?: number;
 }
 
 export const SATELLITE_ALTITUDE = 0.5;
 
-export default function Satellite({ flightRef, visible = true }: SatelliteProps) {
+export default function Satellite({ flightRef, visible = true, scale = 1 }: SatelliteProps) {
   const outerRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
   const dishRef = useRef<THREE.Mesh>(null);
@@ -64,7 +65,7 @@ export default function Satellite({ flightRef, visible = true }: SatelliteProps)
   });
 
   return (
-    <group ref={outerRef} visible={visible}>
+    <group ref={outerRef} visible={visible} scale={scale}>
       {/* Satellite body — small scale, +Y points to space, -Y faces Earth */}
       <group ref={bodyRef} scale={0.07}>
         <mesh>
