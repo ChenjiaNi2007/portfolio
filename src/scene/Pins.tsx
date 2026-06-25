@@ -1,22 +1,15 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { latLngToVector3 } from '../lib/geo';
 import type { MapLocation } from '../data/locations';
 import { GLOBE_RADIUS } from './Globe';
-import styles from './Pins.module.css';
 
 const PIN_ALTITUDE = 0.04;
-const POPUP_PROXIMITY = 0.28; // radians (~16 deg)
 
 interface PinsProps {
   locations: MapLocation[];
-  planeLat: number;
-  planeLng: number;
   visitedIds: Set<string>;
-  onLand: (id: string) => void;
-  panelOpen: boolean;
 }
 
 function PulseRing({ color }: { color: string }) {
@@ -37,14 +30,10 @@ function PulseRing({ color }: { color: string }) {
 
 function ProjectPin({
   location,
-  near,
   visited,
-  onLand,
 }: {
   location: Extract<MapLocation, { type: 'project' }>;
-  near: boolean;
   visited: boolean;
-  onLand: () => void;
 }) {
   const pos = useMemo(
     () => latLngToVector3(location.coordinates.lat, location.coordinates.lng, GLOBE_RADIUS + PIN_ALTITUDE),
@@ -68,39 +57,16 @@ function ProjectPin({
         </mesh>
         <PulseRing color="#ff6b35" />
       </group>
-
-      {near && (
-        <Html
-          position={[0, 0.14, 0]}
-          center
-          distanceFactor={2.5}
-          zIndexRange={[100, 0]}
-          occlude={false}
-        >
-          <div className={styles.popup + ' ' + styles.projectPopup}>
-            <div className={styles.popupTitle}>{location.title}</div>
-            <div className={styles.popupCity}>{location.city}</div>
-            <div className={styles.popupSummary}>{location.summary}</div>
-            <button className={styles.landBtn} onClick={onLand}>
-              🛰 Scan location
-            </button>
-          </div>
-        </Html>
-      )}
     </group>
   );
 }
 
 function PhotoPin({
   location,
-  near,
   visited,
-  onLand,
 }: {
   location: Extract<MapLocation, { type: 'photo' }>;
-  near: boolean;
   visited: boolean;
-  onLand: () => void;
 }) {
   const pos = useMemo(
     () => latLngToVector3(location.coordinates.lat, location.coordinates.lng, GLOBE_RADIUS + PIN_ALTITUDE),
@@ -123,65 +89,18 @@ function PhotoPin({
         </mesh>
         <PulseRing color="#4fc3f7" />
       </group>
-
-      {near && (
-        <Html
-          position={[0, 0.14, 0]}
-          center
-          distanceFactor={2.5}
-          zIndexRange={[100, 0]}
-          occlude={false}
-        >
-          <div className={styles.popup + ' ' + styles.photoPopup}>
-            <div className={styles.popupTitle}>{location.title}</div>
-            <div className={styles.popupCity}>{location.city}</div>
-            {location.photos[0] && (
-              <img src={location.photos[0].src} alt={location.photos[0].alt} className={styles.popupThumb} />
-            )}
-            {!location.photos[0] && <div className={styles.popupPhotoIcon}>📷</div>}
-            <div className={styles.popupSummary}>{location.caption}</div>
-            <button className={styles.landBtn + ' ' + styles.photoLandBtn} onClick={onLand}>
-              📷 Capture
-            </button>
-          </div>
-        </Html>
-      )}
     </group>
   );
 }
 
-export default function Pins({ locations, planeLat, planeLng, visitedIds, onLand, panelOpen }: PinsProps) {
-  const toRad = (d: number) => d * (Math.PI / 180);
-
-  function isNear(loc: MapLocation) {
-    const { lat, lng } = loc.coordinates;
-    const dLat = toRad(lat - planeLat);
-    const dLng = toRad(lng - planeLng);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(planeLat)) * Math.cos(toRad(lat)) * Math.sin(dLng / 2) ** 2;
-    return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) < POPUP_PROXIMITY;
-  }
-
+export default function Pins({ locations, visitedIds }: PinsProps) {
   return (
     <group>
       {locations.map((loc) =>
         loc.type === 'project' ? (
-          <ProjectPin
-            key={loc.id}
-            location={loc}
-            near={!panelOpen && isNear(loc)}
-            visited={visitedIds.has(loc.id)}
-            onLand={() => onLand(loc.id)}
-          />
+          <ProjectPin key={loc.id} location={loc} visited={visitedIds.has(loc.id)} />
         ) : (
-          <PhotoPin
-            key={loc.id}
-            location={loc}
-            near={!panelOpen && isNear(loc)}
-            visited={visitedIds.has(loc.id)}
-            onLand={() => onLand(loc.id)}
-          />
+          <PhotoPin key={loc.id} location={loc} visited={visitedIds.has(loc.id)} />
         ),
       )}
     </group>

@@ -4,11 +4,13 @@ import Globe from './scene/Globe';
 import Starfield from './scene/Starfield';
 import Satellite from './scene/Satellite';
 import Pins from './scene/Pins';
+import NearbyProjector from './scene/NearbyProjector';
 import CameraRig from './scene/CameraRig';
 import Header from './ui/Header';
 import Intro from './ui/Intro';
 import ControlsHint from './ui/ControlsHint';
 import DetailPanel from './ui/DetailPanel';
+import NearbyLabels from './ui/NearbyLabels';
 import Passport from './ui/Passport';
 import locations from './data/locations';
 import { angularDistance } from './lib/geo';
@@ -126,14 +128,13 @@ function FlightController({
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(true);
-  const [lat, setLat] = useState(20);
-  const [lng, setLng] = useState(0);
   const [zoom, setZoom] = useState(0.35);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [activeLandingId, setActiveLandingId] = useState<string | null>(null);
   const [isLanding, setIsLanding] = useState(false);
   const [passportOpen, setPassportOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
 
   const flightRef = useRef<Flight>({ lat: 20, lng: 0, heading: 0, vLat: 0, vLng: 0 });
   const keysRef = useRef<Record<string, boolean>>({});
@@ -145,9 +146,9 @@ export default function App() {
   activeLandingRef.current = activeLandingId;
 
   // Sync flight ref → React state (called ~10x/sec from the controller).
+  // Marker proximity for the nearby-labels overlay is handled in NearbyProjector;
+  // here we only flag locations the satellite has passed as visited.
   function handleSync(f: Flight) {
-    setLat(f.lat);
-    setLng(f.lng);
     locations.forEach((loc) => {
       const distRad = angularDistance(f.lat, f.lng, loc.coordinates.lat, loc.coordinates.lng);
       if (distRad * (180 / Math.PI) < PROXIMITY_DEG) {
@@ -181,6 +182,13 @@ export default function App() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
+  }, []);
+
+  // Track viewport so the 2D label overlay matches the canvas pixel space.
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // Scroll zoom
@@ -334,13 +342,11 @@ export default function App() {
         <Suspense fallback={null}>
           <Globe autoRotate={false} />
           <Satellite flightRef={flightRef} visible={!activeLandingId} />
-          <Pins
+          <Pins locations={locations} visitedIds={visitedIds} />
+          <NearbyProjector
             locations={locations}
-            planeLat={lat}
-            planeLng={lng}
-            visitedIds={visitedIds}
-            onLand={landAt}
-            panelOpen={!!activeLandingId}
+            flightRef={flightRef}
+            active={!showIntro && !activeLandingId}
           />
           <CameraRig
             flightRef={flightRef}
@@ -355,6 +361,10 @@ export default function App() {
 
       <Header onPassport={() => setPassportOpen(true)} />
       {!showIntro && !activeLandingId && <ControlsHint />}
+
+      {!showIntro && !activeLandingId && (
+        <NearbyLabels viewport={viewport} onLand={landAt} />
+      )}
 
       <DetailPanel location={activeLoc} onClose={takeOff} />
 

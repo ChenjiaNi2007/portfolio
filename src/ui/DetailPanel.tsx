@@ -96,6 +96,11 @@ export default function DetailPanel({ location, onClose }: DetailPanelProps) {
           </div>
         )}
 
+        {/* Video */}
+        {location.type === 'project' && location.video && (
+          <video className={styles.video} src={location.video} controls playsInline preload="metadata" />
+        )}
+
         {/* Content */}
         {isProject && location.type === 'project' && (
           <>
@@ -111,7 +116,17 @@ export default function DetailPanel({ location, onClose }: DetailPanelProps) {
                   {l.label} ↗
                 </a>
               ))}
+              {location.pdf && (
+                <a href={location.pdf} target="_blank" rel="noreferrer" className={styles.externalLink}>
+                  Open PDF ↗
+                </a>
+              )}
             </div>
+            {location.pdf && (
+              <div className={styles.pdfWrap}>
+                <iframe className={styles.pdfFrame} src={`${location.pdf}#view=FitH`} title={`${location.title} document`} />
+              </div>
+            )}
           </>
         )}
 

@@ -3,3 +3,6 @@ dist/
 .DS_Store
 *.local
 .playwright-mcp/
+
+# Large source originals — only the compressed copies in public/media are committed
+Stuff I_ve Done/
