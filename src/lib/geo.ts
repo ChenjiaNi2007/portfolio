@@ -1,9 +1,15 @@
 import * as THREE from 'three';
 
-export function latLngToVector3(lat: number, lng: number, radius: number): THREE.Vector3 {
+// Pass `out` from per-frame code to avoid allocating a new vector every call.
+export function latLngToVector3(
+  lat: number,
+  lng: number,
+  radius: number,
+  out: THREE.Vector3 = new THREE.Vector3(),
+): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
   const theta = (lng + 180) * (Math.PI / 180);
-  return new THREE.Vector3(
+  return out.set(
     -radius * Math.sin(phi) * Math.cos(theta),
     radius * Math.cos(phi),
     radius * Math.sin(phi) * Math.sin(theta),

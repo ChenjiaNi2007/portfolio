@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import Globe from './scene/Globe';
 import Starfield from './scene/Starfield';
@@ -9,13 +9,16 @@ import CameraRig from './scene/CameraRig';
 import Header from './ui/Header';
 import Intro from './ui/Intro';
 import ControlsHint from './ui/ControlsHint';
-import DetailPanel from './ui/DetailPanel';
 import NearbyLabels from './ui/NearbyLabels';
 import Passport from './ui/Passport';
 import locations from './data/locations';
 import { angularDistance } from './lib/geo';
 import type { Flight } from './lib/flight';
 import './App.css';
+
+// Code-split so Leaflet/react-leaflet stay out of the initial bundle; the chunk
+// loads on the first landing.
+const DetailPanel = lazy(() => import('./ui/DetailPanel'));
 
 // Movement tuning (degrees per ~60fps frame).
 const MAX_SPEED = 0.5;    // top traversal speed
@@ -383,7 +386,9 @@ export default function App() {
         <NearbyLabels viewport={viewport} onLand={landAt} />
       )}
 
-      <DetailPanel location={activeLoc} onClose={takeOff} />
+      <Suspense fallback={null}>
+        {activeLoc && <DetailPanel location={activeLoc} onClose={takeOff} />}
+      </Suspense>
 
       <Passport
         open={passportOpen}

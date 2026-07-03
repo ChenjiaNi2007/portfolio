@@ -37,7 +37,7 @@ export default function Satellite({ flightRef, visible = true, scale = 1 }: Sate
     if (!outerRef.current) return;
     const f = flightRef.current;
 
-    const pos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS + SATELLITE_ALTITUDE);
+    const pos = latLngToVector3(f.lat, f.lng, GLOBE_RADIUS + SATELLITE_ALTITUDE, tmp.pos);
     outerRef.current.position.copy(pos);
 
     // Local +Y points to space; yaw around it to face the travel direction.

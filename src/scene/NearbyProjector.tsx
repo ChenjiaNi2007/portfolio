@@ -47,7 +47,7 @@ export default function NearbyProjector({ locations, flightRef, active }: Nearby
       const { lat, lng } = loc.coordinates;
       if (angularDistance(f.lat, f.lng, lat, lng) * (180 / Math.PI) > PROXIMITY_DEG) continue;
 
-      pinVec.current.copy(latLngToVector3(lat, lng, GLOBE_RADIUS + ANCHOR_ALTITUDE));
+      latLngToVector3(lat, lng, GLOBE_RADIUS + ANCHOR_ALTITUDE, pinVec.current);
       // Hide markers on the far side of the globe.
       if (pinVec.current.dot(camDir.current) / pinVec.current.length() < cosHorizon) continue;
 
