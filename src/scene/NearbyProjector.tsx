@@ -11,7 +11,6 @@ import type { Flight } from '../lib/flight';
 // Anchor the leader line near the top of the beacon/camera marker.
 const ANCHOR_ALTITUDE = 0.14;
 const PROXIMITY_DEG = 16;
-const UPDATE_INTERVAL = 0.02; // seconds (~50 Hz) — cheap, since only the overlay re-renders
 
 interface NearbyProjectorProps {
   locations: MapLocation[];
@@ -24,17 +23,12 @@ interface NearbyProjectorProps {
 // and push the result into the external marker store (never React/App state).
 export default function NearbyProjector({ locations, flightRef, active }: NearbyProjectorProps) {
   const { camera, size } = useThree();
-  const accum = useRef(0);
   const lastKey = useRef('');
   const camDir = useRef(new THREE.Vector3());
   const pinVec = useRef(new THREE.Vector3());
   const ndc = useRef(new THREE.Vector3());
 
-  useFrame((_, delta) => {
-    accum.current += delta;
-    if (accum.current < UPDATE_INTERVAL) return;
-    accum.current = 0;
-
+  useFrame(() => {
     if (!active) {
       if (lastKey.current !== 'off') {
         lastKey.current = 'off';
@@ -74,7 +68,9 @@ export default function NearbyProjector({ locations, flightRef, active }: Nearby
       });
     }
 
-    const key = out.map((m) => `${m.id}:${Math.round(m.x)}:${Math.round(m.y)}`).join('|');
+    // Tenth-of-a-pixel precision: skips redundant renders when nothing moved,
+    // without quantizing slow pin motion into visible 1px steps.
+    const key = out.map((m) => `${m.id}:${Math.round(m.x * 10)}:${Math.round(m.y * 10)}`).join('|');
     if (key !== lastKey.current) {
       lastKey.current = key;
       setMarkers(out);

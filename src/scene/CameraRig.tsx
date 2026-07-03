@@ -22,8 +22,14 @@ export default function CameraRig({ flightRef, zoom, isLanding, intro, landTarge
   const targetPos = useRef(new THREE.Vector3());
   const targetLook = useRef(new THREE.Vector3());
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const f = flightRef.current;
+
+    // Frame-rate-independent smoothing: k is per-second stiffness, tuned so the feel
+    // matches the old fixed per-frame lerp factors at 60fps. Fixed factors converge
+    // twice as fast on 120Hz displays and hitch when frame timing varies.
+    const dt = Math.min(delta, 0.1);
+    const ease = (k: number) => 1 - Math.exp(-k * dt);
 
     // Intro: a slow, wide cinematic orbit around the whole planet. Easing the camera
     // toward this target means the hand-off to the chase cam on launch is seamless.
@@ -33,10 +39,10 @@ export default function CameraRig({ flightRef, zoom, isLanding, intro, landTarge
       const dist = 8.4;
       targetPos.current.lerp(
         new THREE.Vector3(Math.sin(az) * dist, 3.0 + Math.sin(t * 0.16) * 0.35, Math.cos(az) * dist),
-        0.04,
+        ease(2.5),
       );
-      targetLook.current.lerp(new THREE.Vector3(0, 0, 0), 0.06);
-      camera.position.lerp(targetPos.current, 0.06);
+      targetLook.current.lerp(new THREE.Vector3(0, 0, 0), ease(3.7));
+      camera.position.lerp(targetPos.current, ease(3.7));
       camera.lookAt(targetLook.current);
       return;
     }
@@ -58,8 +64,8 @@ export default function CameraRig({ flightRef, zoom, isLanding, intro, landTarge
     if (isLanding && landTarget) {
       const landPos = latLngToVector3(landTarget.lat, landTarget.lng, GLOBE_RADIUS + 0.45);
       const landGround = latLngToVector3(landTarget.lat, landTarget.lng, GLOBE_RADIUS);
-      targetPos.current.lerp(landPos, 0.05);
-      targetLook.current.lerp(landGround, 0.05);
+      targetPos.current.lerp(landPos, ease(3.1));
+      targetLook.current.lerp(landGround, ease(3.1));
     } else {
       const dist = THREE.MathUtils.lerp(MAX_DIST, MIN_DIST, zoom);
       const back = forward.clone().negate();
@@ -68,12 +74,12 @@ export default function CameraRig({ flightRef, zoom, isLanding, intro, landTarge
         .addScaledVector(up, 0.26 * dist)
         .addScaledVector(back, 0.12 * dist);
 
-      targetPos.current.lerp(chasePos, 0.08);
+      targetPos.current.lerp(chasePos, ease(5));
       const look = satPos.clone().lerp(groundPos, 0.55);
-      targetLook.current.lerp(look, 0.12);
+      targetLook.current.lerp(look, ease(7.7));
     }
 
-    camera.position.lerp(targetPos.current, 0.12);
+    camera.position.lerp(targetPos.current, ease(7.7));
     camera.lookAt(targetLook.current);
   });
 

@@ -88,7 +88,7 @@ export default function NearbyLabels({ viewport, onLand }: NearbyLabelsProps) {
         <div
           key={m.id}
           className={`${styles.card} ${m.type === 'project' ? styles.cardProject : styles.cardPhoto}`}
-          style={{ left: m.cardX, top: m.cardY, width: CARD_W }}
+          style={{ transform: `translate3d(${m.cardX}px, ${m.cardY}px, 0)`, width: CARD_W }}
         >
           <div className={styles.title}>{m.title}</div>
           <div className={styles.city}>{m.city}</div>

@@ -39,6 +39,11 @@
 
 .card {
   position: absolute;
+  top: 0;
+  left: 0;
+  /* Positioned via inline translate3d — stays on the compositor and keeps
+     sub-pixel motion, unlike left/top which trigger layout every frame. */
+  will-change: transform;
   background: rgba(10, 14, 26, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
@@ -51,8 +56,8 @@
 }
 
 @keyframes nearbyFade {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .cardProject {
